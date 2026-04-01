@@ -321,7 +321,7 @@ export default function LandingPage() {
 
             <div className="title-wrapper">
               <img
-                src="/assets/images/Hero_hp_title1.png"
+                src="/assets/images/hero_hp_title1.png"
                 alt="ECMEET'26"
                 className="title-image"
                 onError={e => {
