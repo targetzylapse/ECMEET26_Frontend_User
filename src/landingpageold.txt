@@ -1,0 +1,593 @@
+import React, { useContext, useState, useEffect, useRef } from 'react';
+import { AuthContext, ToastContext } from './App';
+import { authAPI } from './api';
+import axios from 'axios';
+const API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import { GOOGLE_CLIENT_ID, COLLEGE } from './config';
+
+/* ── One team per corner ─────────────────────────────────────────────────── */
+const CORNERS = {
+  topLeft:     { img: 'ic_top_left_corner_gryffindor.png',    fallback: 'corner_gold_tl.png' },
+  topRight:    { img: 'ic_top_left_corner_slytherin.png',     fallback: 'corner_gold_tr.png' },
+  bottomLeft:  { img: 'ic_top_left_corner_hufflepuff.png',  fallback: 'corner_gold_bl.png' },
+  bottomRight: { img: 'ic_top_left_corner_ravenclaw.png',  fallback: 'corner_gold_br.png' },
+};
+
+const TEAMS = [
+  { id: 'gryffindor', logo: 'logo_gryffindor.png' },
+  { id: 'hufflepuff',  logo: 'logo_hufflepuff.png'  },
+  { id: 'ravenclaw',  logo: 'logo_ravenclaw.png'  },
+  { id: 'slytherin',  logo: 'logo_slytherin.png'  },
+];
+
+const FOOTER_HEIGHT = window.innerWidth <= 768 ? 120 : 150; // px
+
+export default function LandingPage() {
+  const { login }     = useContext(AuthContext);
+  const { showToast } = useContext(ToastContext);
+  const [error,      setError]      = useState('');
+  const [signingIn,  setSigningIn]  = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const gsiDone    = useRef(false);
+  const googleBtnRef = useRef(null);
+
+  /* ── Bootstrap Google GSI exactly once ──────────────────────────────────── */
+  useEffect(() => {
+    if (gsiDone.current) return;
+    const boot = () => {
+      if (!window.google || !GOOGLE_CLIENT_ID) return;
+      gsiDone.current = true;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredential,
+        auto_select: false,
+        ux_mode: 'popup',
+        cancel_on_tap_outside: true,
+      });
+      if (googleBtnRef.current) {
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: 'standard', theme: 'outline', size: 'large', width: 280,
+        });
+      }
+    };
+    if (window.google) { boot(); }
+    else {
+      const t = setInterval(() => { if (window.google) { boot(); clearInterval(t); } }, 150);
+      return () => clearInterval(t);
+    }
+  }, []);
+
+  const handleCredential = async (resp) => {
+    setSigningIn(true); setError('');
+    try {
+      const r = await authAPI.googleLogin(resp.credential);
+      login(r.data.user, r.data.token);
+      showToast(`Welcome, ${r.data.user.name}! ✨`, 'success');
+    } catch (e) {
+      setError(e.response?.data?.message || 'Sign in failed. Please try again.');
+      setSigningIn(false);
+    }
+  };
+
+const handleDevLogin = async () => {
+    setSigningIn(true); setError('');
+    try {
+      const r = await axios.post(`${API}/auth/dev-login`);
+      login(r.data.user, r.data.token);
+      showToast(`Dev login as ${r.data.user.email}`, 'success');
+    } catch (e) {
+      setError('Dev login failed — is backend running?');
+      setSigningIn(false);
+    }
+  };
+
+  const handleSignIn = () => {
+    if (signingIn) return;
+    if (!GOOGLE_CLIENT_ID) { setError('Google Client ID not configured.'); return; }
+    const realBtn = googleBtnRef.current?.querySelector('div[role=button]');
+    if (realBtn) { realBtn.click(); return; }
+    window.google?.accounts.id.prompt();
+  };
+
+  const CornerImg = ({ slot, style }) => {
+    const c = CORNERS[slot];
+    return (
+      <img
+        src={`/assets/images/corners/${c.img}`}
+        alt=""
+        className="hp-corner"
+        style={style}
+        onError={e => { e.target.src = `/assets/images/corners/${c.fallback}`; e.onerror = null; }}
+      />
+    );
+  };
+
+  return (
+    <>
+      {/* ════════════════════════════════════════════════════
+          FIXED FOOTER
+      ════════════════════════════════════════════════════ */}
+      <footer style={FSTYLE.footer}>
+        <div style={FSTYLE.teamsBlock}>
+          <p style={FSTYLE.teamsLabel}>
+            <span style={FSTYLE.labelLine} />
+            <span>ECMEET'26 Teams &nbsp;—&nbsp; Inspired by Harry Potter</span>
+            <span style={FSTYLE.labelLine} />
+          </p>
+          <div style={FSTYLE.logosRow}>
+            {TEAMS.map(t => (
+              <div
+                key={t.id}
+                style={FSTYLE.logoWrap}
+                onMouseEnter={e => { const img = e.currentTarget.querySelector('img'); if (img) { img.style.filter = 'drop-shadow(0 0 16px rgba(201,168,76,0.75)) brightness(1.25)'; img.style.transform = 'translateY(-4px) scale(1.08)'; } }}
+                onMouseLeave={e => { const img = e.currentTarget.querySelector('img'); if (img) { img.style.filter = 'drop-shadow(0 0 5px rgba(201,168,76,0.22))'; img.style.transform = 'translateY(0) scale(1)'; } }}
+              >
+                <img
+                  src={`/assets/images/logos/${t.logo}`}
+                  alt={t.id}
+                  style={FSTYLE.logoImg}
+                  onError={e => e.target.style.display = 'none'}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={FSTYLE.divRow}>
+          <div style={FSTYLE.divLine} />
+          <span style={FSTYLE.divGem}>⬡</span>
+          <div style={FSTYLE.divLine} />
+        </div>
+
+        <div style={FSTYLE.infoRow}>
+          <div style={FSTYLE.brandBlock}>
+            <img
+              src="/assets/images/logos/crescent_logo.png"
+              alt="Crescent University"
+              style={FSTYLE.cLogo}
+              onError={e => e.target.style.display = 'none'}
+            />
+            <div>
+              <p style={FSTYLE.collegeName}>Crescent University</p>
+              <p style={FSTYLE.eventName}>ECMEET'26</p>
+            </div>
+          </div>
+          <div style={FSTYLE.vDivider} />
+          <div style={FSTYLE.contactBlock}>
+            <span style={FSTYLE.contactItem}>
+              <span className="material-symbols-outlined" style={FSTYLE.icon}>mail</span>
+              ecmeet@crescent.education
+            </span>
+            <span style={FSTYLE.contactItem}>
+              <span className="material-symbols-outlined" style={FSTYLE.icon}>call</span>
+              +91 99999 00000
+            </span>
+          </div>
+        </div>
+        <p style={FSTYLE.copy}>© 2026 Crescent University · All rights reserved.</p>
+      </footer>
+
+      {/* ════════════════════════════════════════════════════
+          HERO SCROLL CONTAINER
+      ════════════════════════════════════════════════════ */}
+      <div className="hp-hero-wrap" style={{ marginBottom: FOOTER_HEIGHT }}>
+
+        {/* ── BG image & Video ─────────────────────────── */}
+        <div style={{
+          ...S.fill,
+          backgroundImage: "url('/assets/images/hero_bg.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          zIndex: 0,
+          opacity: videoReady ? 0 : 1,
+          transition: 'opacity 1.4s ease',
+        }} />
+
+        <video
+          className="hp-video"
+          style={{ ...S.video, opacity: videoReady ? 1 : 0 }}
+          autoPlay loop muted playsInline preload="auto"
+          onCanPlay={() => setVideoReady(true)}
+        >
+          <source src="/assets/videos/hero_video.mp4"  type="video/mp4" />
+          <source src="/assets/videos/hero_video.webm" type="video/webm" />
+        </video>
+
+        {/* ── Gradient overlays ──────────────────────────────────────────── */}
+        <div style={{ ...S.fill, zIndex: 3, pointerEvents: 'none', background: `linear-gradient(180deg, rgba(4,10,2,0.58) 0%, rgba(4,10,2,0.08) 20%, rgba(4,10,2,0.00) 40%, rgba(4,10,2,0.22) 60%, rgba(4,10,2,0.82) 80%, rgba(3,8,2,0.97)  100%)` }} />
+        <div style={{ ...S.fill, zIndex: 4, pointerEvents: 'none', background: `radial-gradient(ellipse 90% 50% at 50% 22%, rgba(210,175,90,0.13) 0%, transparent 68%)` }} />
+        <div style={{ ...S.fill, zIndex: 5, pointerEvents: 'none', background: `linear-gradient(90deg, rgba(3,8,2,0.60) 0%, transparent 20%, transparent 80%, rgba(3,8,2,0.60) 100%)` }} />
+
+        {/* ── Gold border lines & Corners ────────────────────────────────── */}
+        <div style={S.goldTop} />
+        <div style={S.goldBot} />
+        <CornerImg slot="topLeft"     style={{ ...S.corner, top: 0,    left: 0 }} />
+        <CornerImg slot="topRight"    style={{ ...S.corner, top: 0,    right: 0,  transform: 'scaleX(-1)' }} />
+        <CornerImg slot="bottomLeft"  style={{ ...S.corner, bottom: 0, left: 0,   transform: 'scaleY(-1)' }} />
+        <CornerImg slot="bottomRight" style={{ ...S.corner, bottom: 0, right: 0,  transform: 'scale(-1,-1)' }} />
+
+        {/* ── CENTER CONTENT ─────────────────────────────────────────────── */}
+        <div className="hp-content">
+
+          <img
+            src="/assets/images/logos/crescent_logo.png"
+            alt="Crescent University"
+            className="hp-crescent-logo"
+            onError={e => e.target.style.display = 'none'}
+          />
+
+          <p className="hp-presents">
+            ✦ &nbsp; Crescent University Presents &nbsp; ✦
+          </p>
+
+          <div style={S.titleWrap}>
+            <img
+              src="/assets/images/Hero_title.png"
+              alt="ECMEET'26"
+              className="hp-title-img"
+              onError={e => {
+                e.target.style.display = 'none';
+                document.getElementById('ecmeet_fallback').style.display = 'block';
+              }}
+            />
+            <h1 id="ecmeet_fallback" style={S.titleFallback}>ECMEET'26</h1>
+          </div>
+
+          <p className="hp-tagline">
+            A Technical Symposium of Magic &amp; Mastery
+          </p>
+
+          <div className="hp-divider">
+            <div style={S.divLine} />
+            <span style={S.divGem}>◆</span>
+            <div style={S.divLine} />
+          </div>
+
+          {error && (
+            <div style={S.errorBox}>
+              <span className="material-symbols-outlined" style={{ fontSize: '1rem', marginRight: 6, verticalAlign: 'middle' }}>warning</span>
+              {error}
+            </div>
+          )}
+
+          <div ref={googleBtnRef} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1, overflow: 'hidden', top: 0, left: 0 }} />
+
+          <button
+            className="hp-signin-btn"
+            onClick={handleSignIn}
+            disabled={signingIn}
+            onMouseEnter={e => {
+              if (signingIn) return;
+              Object.assign(e.currentTarget.style, {
+                background: 'rgba(201,168,76,0.15)',
+                borderColor: '#e8c96f',
+                boxShadow: '0 0 40px rgba(201,168,76,0.55), 0 0 80px rgba(201,168,76,0.2), inset 0 0 28px rgba(201,168,76,0.06)',
+                letterSpacing: '0.22em',
+                transform: 'translateY(-2px) translateZ(0)',
+              });
+            }}
+            onMouseLeave={e => {
+              Object.assign(e.currentTarget.style, {
+                background: 'rgba(6,4,1,0.65)',
+                borderColor: '#c9a84c',
+                boxShadow: '0 0 22px rgba(201,168,76,0.28), 0 0 48px rgba(201,168,76,0.09)',
+                letterSpacing: '0.18em',
+                transform: 'translateY(0) translateZ(0)',
+              });
+            }}
+          >
+            <span style={{ color: '#c9a84c', fontSize: '0.58rem', opacity: 0.75 }}>✦</span>
+            {signingIn ? (
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: '1.05rem', animation: 'spin 1s linear infinite' }}>progress_activity</span>
+                <span>Entering the Castle…</span>
+              </>
+            ) : (
+              <>
+                <GoogleColorIcon />
+                <span>Sign in with Google</span>
+              </>
+            )}
+            <span style={{ color: '#c9a84c', fontSize: '0.58rem', opacity: 0.75 }}>✦</span>
+          </button>
+
+          <p className="hp-domain-note">
+            <span className="material-symbols-outlined" style={{ fontSize: '0.85rem', verticalAlign: 'middle', marginRight: 4, opacity: 0.55 }}>lock</span>
+            Only @{COLLEGE.allowedDomain} accounts permitted
+          </p>
+
+          {process.env.NODE_ENV !== 'production' && (
+  <button
+    onClick={handleDevLogin}
+    disabled={signingIn}
+    style={{
+      marginTop: '1.2rem',
+      background: 'rgba(255,255,255,0.04)',
+      border: '1px dashed rgba(201,168,76,0.25)',
+      color: 'rgba(184,168,130,0.45)',
+      fontFamily: 'Cinzel, serif',
+      fontSize: '0.6rem',
+      letterSpacing: '0.15em',
+      textTransform: 'uppercase',
+      padding: '0.5rem 1.2rem',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.4rem',
+      transition: 'all 0.2s',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.color = 'rgba(201,168,76,0.6)'; e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)'; }}
+    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(184,168,130,0.45)'; e.currentTarget.style.borderColor = 'rgba(201,168,76,0.25)'; }}
+  >
+    <span className="material-symbols-outlined" style={{ fontSize: '0.85rem' }}>developer_mode</span>
+    Continue without login (Dev)
+  </button>
+)}
+
+        </div>{/* end content */}
+      </div>{/* end heroWrap */}
+
+      {/* ── Global styles ──────────────────────────────────────────────── */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { scrollbar-width: none; -ms-overflow-style: none; overflow-x: hidden; }
+        html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(32px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes titlePulse {
+          from { filter: drop-shadow(0 0 12px rgba(201,168,76,0.5)) drop-shadow(0 0 28px rgba(201,168,76,0.2)); }
+          to   { filter: drop-shadow(0 0 28px rgba(201,168,76,0.88)) drop-shadow(0 0 65px rgba(201,168,76,0.4)) drop-shadow(0 0 110px rgba(201,168,76,0.13)); }
+        }
+        @keyframes logoFloat {
+          0%,100% { transform: translateY(0); }
+          50%      { transform: translateY(-6px); }
+        }
+        @keyframes borderPulse {
+          0%,100% { opacity: 0.45; }
+          50%      { opacity: 1; }
+        }
+
+        /* ── Core Hero Container (Fits exactly to screen) ────────────── */
+        .hp-hero-wrap {
+          position: relative;
+          z-index: 2;
+          width: 100%;
+          height: 100vh; /* Fits PC and Tab exactly */
+          overflow: hidden; /* Prevents absolutely any element from exceeding */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 20px 70px rgba(0,0,0,0.9);
+          background: #06100a;
+        }
+
+        /* ── Video fill + mobile zoom ───────────────────────────────── */
+        .hp-video {
+          position: absolute;
+          top: 0; left: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center center;
+          z-index: 2;
+          transform: translateZ(0);
+          will-change: opacity;
+          transition: opacity 1.2s ease;
+        }
+
+        /* ── Fluid content layout — fits any screen ─────────────────── */
+        .hp-content {
+          position: relative;
+          z-index: 20;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          width: 100%;
+          max-width: 680px;
+          height: 100%;
+          padding: 1rem;
+          gap: 0;
+          animation: fadeUp 0.85s ease 0.1s both;
+          overflow: hidden; /* Child elements will never push outside */
+        }
+        
+        .hp-crescent-logo {
+          width: clamp(36px, 5.5vw, 64px);
+          max-height: 10vh; /* Dynamic shrinking so it never exceeds container */
+          object-fit: contain;
+          filter: drop-shadow(0 0 12px rgba(201,168,76,0.45));
+          animation: logoFloat 3.5s ease-in-out infinite;
+          margin-bottom: clamp(0.2rem, 1vh, 0.55rem);
+          flex-shrink: 1;
+        }
+
+        /* Minimal Gap: Placed immediately top of the hero text */
+        .hp-presents {
+          font-family: 'Cinzel', serif;
+          font-size: clamp(0.52rem, 1.1vw, 0.7rem);
+          letter-spacing: 0.25em;
+          color: rgba(201,168,76,0.68);
+          text-transform: uppercase;
+          margin-bottom: 4px !important; /* Immediate gap */
+          line-height: 1;
+          user-select: none;
+        }
+
+        .hp-title-img {
+          width: 100%;
+          max-width: min(580px, 84vw);
+          max-height: 25vh; /* Prevents vertical overflow on short screens */
+          object-fit: contain;
+          display: block;
+          animation: titlePulse 2.8s ease-in-out infinite alternate;
+          margin-top: 0 !important; /* No gap above */
+          margin-bottom: clamp(0.2rem, 0.6vh, 0.5rem);
+          flex-shrink: 1;
+        }
+
+        .hp-tagline {
+          font-family: 'EB Garamond', Georgia, serif;
+          font-style: italic;
+          font-size: clamp(0.82rem, 1.7vw, 1.1rem);
+          color: rgba(232,213,176,0.82);
+          letter-spacing: 0.05em;
+          text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+          margin-bottom: clamp(0.4rem, 1.2vh, 0.85rem);
+        }
+
+        .hp-divider {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          width: min(280px, 60vw);
+          margin-bottom: clamp(0.8rem, 2vh, 1.4rem);
+        }
+
+        .hp-signin-btn {
+          font-family: 'Cinzel', serif;
+          font-size: clamp(0.68rem, 1.3vw, 0.8rem);
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #eedfa0;
+          background: rgba(6,4,1,0.65);
+          border: 1px solid #c9a84c;
+          padding: clamp(0.7rem, 1.5vh, 1rem) clamp(1.6rem, 3vw, 2.8rem);
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.65rem;
+          min-width: min(270px, 78vw);
+          justify-content: center;
+          transition: background 0.26s, box-shadow 0.26s, border-color 0.26s, letter-spacing 0.26s, transform 0.26s;
+          box-shadow: 0 0 22px rgba(201,168,76,0.28), 0 0 48px rgba(201,168,76,0.09);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          transform: translateZ(0);
+          margin-bottom: clamp(0.35rem, 1vh, 0.6rem);
+          flex-shrink: 0;
+        }
+
+        .hp-domain-note {
+          font-family: 'EB Garamond', serif;
+          font-style: italic;
+          font-size: clamp(0.68rem, 1.2vw, 0.75rem);
+          color: rgba(184,168,130,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .hp-corner {
+          position: absolute;
+          width: clamp(70px, 9vw, 130px);
+          height: clamp(70px, 9vw, 130px);
+          z-index: 25;
+          opacity: 0.82;
+          pointer-events: none;
+          filter: drop-shadow(0 0 7px rgba(201,168,76,0.28));
+        }
+
+        /* ── Mobile & Responsive Adjustments ────────────────────────── */
+        @media (max-width: 768px) {
+          .hp-hero-wrap {
+            height: 85vh; /* Reduced hero container height only on mobile */
+          }
+          .hp-video {
+            width: 120% !important;
+            left: -10% !important;
+            height: 100% !important;
+            object-position: center center !important;
+          }
+          /* Darker readable text on mobile */
+          .hp-presents   { color: rgba(230,195,75,0.96)  !important; text-shadow: 0 1px 6px rgba(0,0,0,0.95) !important; }
+          .hp-tagline    { color: rgba(255,240,195,0.97) !important; text-shadow: 0 2px 10px rgba(0,0,0,1) !important; }
+          .hp-domain-note{ color: rgba(205,185,145,0.85) !important; text-shadow: 0 1px 4px rgba(0,0,0,0.95) !important; }
+          .hp-signin-btn { backdrop-filter: blur(14px) !important; background: rgba(4,2,0,0.8) !important; }
+        }
+
+        @media (max-height: 650px) and (min-width: 769px) {
+          .hp-crescent-logo { display: none !important; }
+          .hp-tagline       { font-size: 0.78rem !important; margin-bottom: 0.4rem !important; }
+          .hp-divider       { margin-bottom: 0.6rem !important; }
+          .hp-signin-btn    { padding: 0.62rem 1.8rem !important; }
+        }
+
+        @media (max-width: 420px) {
+          .hp-corner { width: 58px !important; height: 58px !important; }
+        }
+
+        /* ── Footer logo row hover ──────────────────────────────────── */
+        .fp-logo-wrap:hover img {
+          filter: drop-shadow(0 0 14px rgba(201,168,76,0.7)) brightness(1.2) !important;
+          transform: translateY(-3px);
+        }
+        .fp-logo-wrap img {
+          transition: filter 0.32s, transform 0.32s;
+        }
+      `}</style>
+    </>
+  );
+}
+
+/* ── Google color icon ───────────────────────────────────────────────────── */
+function GoogleColorIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+   HERO STYLES
+════════════════════════════════════════════════════════ */
+const S = {
+  fill: { position: 'absolute', inset: 0 },
+  video: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center center', zIndex: 2, transition: 'opacity 1.2s ease', transform: 'translateZ(0)' },
+  goldTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 30, background: 'linear-gradient(90deg, transparent 0%, rgba(201,168,76,0.2) 10%, rgba(201,168,76,0.9) 50%, rgba(201,168,76,0.2) 90%, transparent 100%)', animation: 'borderPulse 3s ease-in-out infinite', pointerEvents: 'none' },
+  goldBot: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, zIndex: 30, background: 'linear-gradient(90deg, transparent 0%, rgba(201,168,76,0.2) 10%, rgba(201,168,76,0.9) 50%, rgba(201,168,76,0.2) 90%, transparent 100%)', pointerEvents: 'none' },
+  corner: { position: 'absolute', zIndex: 25 },
+  titleWrap: { width: '100%', display: 'flex', justifyContent: 'center' },
+  titleFallback: { display: 'none', fontFamily: 'Cinzel Decorative, serif', fontSize: 'clamp(3rem, 12vw, 7.5rem)', color: '#e8c96f', lineHeight: 1, margin: 0, letterSpacing: '0.04em', textShadow: '0 0 22px rgba(201,168,76,0.7), 0 0 55px rgba(201,168,76,0.3), 0 0 110px rgba(201,168,76,0.12)', animation: 'titlePulse 2.8s ease-in-out infinite alternate' },
+  divLine: { flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.65), transparent)' },
+  divGem: { color: '#c9a84c', fontSize: '0.6rem', flexShrink: 0, textShadow: '0 0 8px rgba(201,168,76,0.55)' },
+  errorBox: { background: 'rgba(140,15,15,0.25)', border: '1px solid rgba(220,80,80,0.38)', color: '#ffb0b0', padding: '0.6rem 1.3rem', marginBottom: '0.9rem', fontFamily: 'EB Garamond, serif', fontSize: '0.88rem', maxWidth: 370, backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', flexShrink: 0 },
+};
+
+/* ════════════════════════════════════════════════════════
+   FOOTER STYLES
+════════════════════════════════════════════════════════ */
+const FSTYLE = {
+  footer: { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1, minHeight: FOOTER_HEIGHT, background: 'linear-gradient(180deg, #050c04 0%, #020602 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.9rem 1.5rem 0.6rem', gap: '0.5rem', borderTop: '1px solid rgba(201,168,76,0.18)' },
+  teamsBlock: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', width: '100%' },
+  teamsLabel: { fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.5rem, 0.9vw, 0.62rem)', letterSpacing: '0.18em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.6rem', whiteSpace: 'nowrap' },
+  labelLine: { display: 'inline-block', width: 28, height: 1, background: 'rgba(201,168,76,0.25)', flexShrink: 0 },
+  logosRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(1.2rem, 3vw, 2.8rem)' },
+  logoWrap: { display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default' },
+  logoImg: { width: 'clamp(32px, 3.8vw, 46px)', height: 'clamp(32px, 3.8vw, 46px)', objectFit: 'contain', filter: 'drop-shadow(0 0 5px rgba(201,168,76,0.22))', transition: 'filter 0.32s ease, transform 0.32s ease' },
+  divRow: { display: 'flex', alignItems: 'center', gap: '0.6rem', width: 'min(220px, 50vw)' },
+  divLine: { flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.4), transparent)' },
+  divGem: { color: 'rgba(201,168,76,0.55)', fontSize: '0.58rem', flexShrink: 0 },
+  infoRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(1rem, 3vw, 2.5rem)', flexWrap: 'wrap' },
+  brandBlock: { display: 'flex', alignItems: 'center', gap: '0.65rem' },
+  cLogo: { width: 'clamp(26px, 3vw, 36px)', height: 'clamp(26px, 3vw, 36px)', objectFit: 'contain', filter: 'drop-shadow(0 0 7px rgba(201,168,76,0.32))', flexShrink: 0 },
+  collegeName: { fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.1vw, 0.75rem)', color: 'rgba(201,168,76,0.82)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 },
+  eventName: { fontFamily: 'Cinzel Decorative, serif', fontSize: 'clamp(0.72rem, 1.4vw, 0.95rem)', color: '#e8c96f', letterSpacing: '0.05em', textShadow: '0 0 12px rgba(201,168,76,0.38)', margin: 0 },
+  vDivider: { width: 1, height: 'clamp(28px, 4vh, 38px)', background: 'rgba(201,168,76,0.2)', flexShrink: 0 },
+  contactBlock: { display: 'flex', flexDirection: 'column', gap: '0.22rem' },
+  contactItem: { display: 'flex', alignItems: 'center', gap: '0.3rem', fontFamily: 'EB Garamond, serif', fontSize: 'clamp(0.72rem, 1.1vw, 0.82rem)', color: 'rgba(184,168,130,0.62)' },
+  icon: { fontSize: '0.88rem', color: 'rgba(201,168,76,0.48)' },
+  copy: { fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.48rem, 0.8vw, 0.56rem)', letterSpacing: '0.12em', color: 'rgba(201,168,76,0.22)', textTransform: 'uppercase', margin: 0 },
+};

@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/static/css/main.13b1ea8c.css",
+    "main.js": "/static/js/main.5c947d55.js",
+    "static/media/hero_bg.png": "/static/media/hero_bg.aa2891e7927e2fbf9cba.png",
+    "static/media/HarryBeastDisplay-Regular.woff2": "/static/media/HarryBeastDisplay-Regular.5654f6e3c8096573418f.woff2",
+    "index.html": "/index.html",
+    "main.13b1ea8c.css.map": "/static/css/main.13b1ea8c.css.map",
+    "main.5c947d55.js.map": "/static/js/main.5c947d55.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.13b1ea8c.css",
+    "static/js/main.5c947d55.js"
+  ]
+}
