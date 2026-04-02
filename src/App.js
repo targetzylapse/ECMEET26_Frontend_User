@@ -14,6 +14,7 @@ import Particles    from './Particles';
 import Toast        from './Toast';
 import ProfileEditModal from './ProfileEditModal';
 import { DataProvider } from './DataContext';
+import { identifyUser } from './socket';
 
 export const AuthContext  = React.createContext(null);
 export const ToastContext = React.createContext(null);
